@@ -7,202 +7,90 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-video { width: 100%; height: 100%; object-fit: cover; }
-#overlay {
-    display: none; position: absolute; bottom: 20px; left: 50%;
-    transform: translateX(-50%); color: white; font-family: monospace;
-    font-size: 20px; background: rgba(0,0,0,0.7); padding: 10px 20px;
-    border-radius: 8px; z-index: 10;
-}
-#status {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-    color: #0f0; font-family: monospace; font-size: 24px;
-    text-align: center; white-space: pre-wrap; z-index: 10;
+#log {
+    color: #0f0; font-family: monospace; font-size: 18px;
+    padding: 20px; overflow-y: auto; height: 100%;
+    white-space: pre-wrap;
 }
 </style>
 </head>
 <body>
-
-<video id="player" autoplay playsinline></video>
-<div id="overlay"></div>
-<div id="status">Initializing...</div>
+<div id="log"></div>
 
 <script>
-var TOTAL = 12;
-var currentIndex = 0;
-var video = document.getElementById('player');
-var overlayEl = document.getElementById('overlay');
-var statusEl = document.getElementById('status');
-var db;
-
-/* ── IndexedDB ── */
-function openDB(cb) {
-    var req = indexedDB.open('sh37c_player', 1);
-    req.onupgradeneeded = function(e) {
-        var d = e.target.result;
-        if (!d.objectStoreNames.contains('videos')) d.createObjectStore('videos');
-    };
-    req.onsuccess = function(e) { db = e.target.result; cb(); };
-    req.onerror = function() { setStatus('IndexedDB error'); };
+var log = document.getElementById('log');
+function addLog(msg, color) {
+    var p = document.createElement('div');
+    p.textContent = msg;
+    p.style.color = color || '#0f0';
+    log.appendChild(p);
+    log.scrollTop = log.scrollHeight;
 }
 
-function dbPut(key, blob, cb) {
-    var tx = db.transaction('videos', 'readwrite');
-    tx.objectStore('videos').put(blob, key);
-    tx.oncomplete = function() { cb(true); };
-    tx.onerror = function() { cb(false); };
-}
-
-function dbGet(key, cb) {
-    var tx = db.transaction('videos', 'readonly');
-    var req = tx.objectStore('videos').get(key);
-    req.onsuccess = function() { cb(req.result || null); };
-    req.onerror = function() { cb(null); };
-}
-
-function dbCount(cb) {
-    var tx = db.transaction('videos', 'readonly');
-    var req = tx.objectStore('videos').count();
-    req.onsuccess = function() { cb(req.result); };
-}
-
-/* ── UI ── */
-function setStatus(msg) { statusEl.textContent = msg; statusEl.style.display = 'block'; }
-function hideStatus() { statusEl.style.display = 'none'; }
-
-function showOverlay(text) {
-    overlayEl.textContent = text;
-    overlayEl.style.display = 'block';
-    setTimeout(function() { overlayEl.style.display = 'none'; }, 3000);
-}
-
-/* ── Player ── */
-function playFromDB(idx) {
-    currentIndex = idx;
-    var key = getKey(idx + 1);
-    dbGet(key, function(blob) {
-        if (!blob) { showOverlay('CH ' + (idx+1) + ' not found'); return; }
-        var url = URL.createObjectURL(blob);
-        video.onloadeddata = function() { hideStatus(); };
-        video.src = url;
-        video.play();
-        showOverlay('CH ' + (idx + 1));
-    });
-}
-
-function getKey(num) { return num < 10 ? '0' + num : '' + num; }
-
-video.addEventListener('ended', function() {
-    playFromDB(currentIndex);
-});
-
-/* ── USB Auto-Import ── */
-var USB_PATHS = [
-    '/opt/storage/usb/',
-    '/opt/storage/usb0/',
-    '/opt/storage/usb1/',
-    '/opt/storage/usb/USB_DRIVE/',
-    '/media/USBDrive/',
-    '/run/media/',
-    'videos/'
+var PATHS = [
+    '/opt/usr/media/',
+    '/opt/usr/media/Videos/',
+    '/opt/usr/media/video/',
+    '/opt/usr/media/magicinfo/',
+    '/opt/usr/media/magicinfo/content/',
+    '/opt/usr/data/magicinfo/',
+    '/opt/usr/home/magicinfo/',
+    '/opt/storage/sdcard/',
+    '/opt/storage/sdcard/Videos/',
+    '/opt/usr/apps/magicinfo/',
+    '/opt/usr/content/',
+    '/opt/usr/home/content/',
+    '/media/internal/',
+    '/media/internal/Videos/',
+    '/opt/usr/home/owner/media/',
+    '/opt/usr/home/owner/media/Videos/',
+    '/home/owner/media/',
+    '/home/owner/media/Videos/'
 ];
 
-function tryFetchVideo(num, pathIdx, cb) {
-    if (pathIdx >= USB_PATHS.length) { cb(false); return; }
-    var fname = getKey(num) + '.mp4';
-    var url = USB_PATHS[pathIdx] + fname;
-    setStatus('Scanning USB...\n' + url);
+var testFile = '01.mp4';
+var found = false;
+var tested = 0;
 
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', url, true);
-    xhr.responseType = 'blob';
-    xhr.timeout = 3000;
-    xhr.onload = function() {
-        if (xhr.status === 200 || xhr.status === 0) {
-            cb(true, xhr.response, USB_PATHS[pathIdx]);
-        } else {
-            tryFetchVideo(num, pathIdx + 1, cb);
-        }
-    };
-    xhr.onerror = function() { tryFetchVideo(num, pathIdx + 1, cb); };
-    xhr.ontimeout = function() { tryFetchVideo(num, pathIdx + 1, cb); };
-    xhr.send();
-}
-
-function importAllFromUSB(basePath, cb) {
-    var imported = 0;
-    function next(num) {
-        if (num > TOTAL) { cb(imported); return; }
-        var fname = getKey(num) + '.mp4';
-        var url = basePath + fname;
-        setStatus('Importing from USB...\n' + imported + '/' + TOTAL + '\n' + fname);
-
-        var xhr = new XMLHttpRequest();
-        xhr.open('GET', url, true);
-        xhr.responseType = 'blob';
-        xhr.timeout = 120000;
-        xhr.onload = function() {
-            if (xhr.status === 200 || xhr.status === 0) {
-                dbPut(getKey(num), xhr.response, function() {
-                    imported++;
-                    setStatus('Saved ' + imported + '/' + TOTAL + '\n' + fname);
-                    next(num + 1);
-                });
-            } else {
-                next(num + 1);
-            }
-        };
-        xhr.onerror = function() { next(num + 1); };
-        xhr.ontimeout = function() { next(num + 1); };
-        xhr.send();
+function tryPath(i) {
+    if (i >= PATHS.length) {
+        addLog('---', '#fff');
+        addLog('ALL PATHS TESTED. None worked.', '#f00');
+        addLog('Tested ' + tested + ' paths total.', '#ff0');
+        return;
     }
-    next(1);
+    var url = PATHS[i] + testFile;
+    addLog('Testing: ' + url + ' ...', '#aaa');
+
+    var v = document.createElement('video');
+    v.preload = 'metadata';
+    v.onloadedmetadata = function() {
+        addLog('✓ FOUND: ' + PATHS[i], '#0f0');
+        found = true;
+        tested++;
+        tryPath(i + 1);
+    };
+    v.onerror = function() {
+        addLog('✗ ' + PATHS[i], '#666');
+        tested++;
+        tryPath(i + 1);
+    };
+    v.src = url;
+    setTimeout(function() {
+        if (!v.readyState) {
+            addLog('✗ timeout ' + PATHS[i], '#666');
+            tested++;
+            v.src = '';
+            tryPath(i + 1);
+        }
+    }, 3000);
 }
 
-/* ── IR Remote ── */
-document.addEventListener('keydown', function(e) {
-    var code = e.keyCode;
-    showOverlay('keyCode: ' + code);
-    var ch = 0;
-    if (code === 49 || code === 97)  ch = 1;
-    if (code === 50 || code === 98)  ch = 2;
-    if (code === 51 || code === 99)  ch = 3;
-    if (code === 52 || code === 100) ch = 4;
-    if (code === 53 || code === 101) ch = 5;
-    if (code === 54 || code === 102) ch = 6;
-    if (code === 55 || code === 103) ch = 7;
-    if (code === 56 || code === 104) ch = 8;
-    if (code === 57 || code === 105) ch = 9;
-    if (code === 48 || code === 96)  ch = 10;
-    if (code === 404) ch = 11;
-    if (code === 405) ch = 12;
-    if (ch >= 1 && ch <= TOTAL) playFromDB(ch - 1);
-});
-
-/* ── Init ── */
-openDB(function() {
-    dbCount(function(count) {
-        if (count >= TOTAL) {
-            setStatus('Stored videos found (' + count + ')\nStarting...');
-            playFromDB(0);
-        } else {
-            setStatus('Searching USB for videos...');
-            tryFetchVideo(1, 0, function(found, blob, basePath) {
-                if (found) {
-                    dbPut(getKey(1), blob, function() {
-                        importAllFromUSB(basePath, function(total) {
-                            setStatus('Import complete: ' + total + ' videos\nStarting...');
-                            setTimeout(function() { playFromDB(0); }, 1000);
-                        });
-                    });
-                } else {
-                    setStatus('No USB videos found.\n\nUSB structure:\n  videos/01.mp4\n  videos/02.mp4\n  ...\n  videos/12.mp4\n\nPlug USB and refresh.');
-                }
-            });
-        }
-    });
-});
+addLog('=== Path Scanner ===', '#ff0');
+addLog('Looking for: ' + testFile, '#fff');
+addLog('MagicInfo로 01.mp4를 먼저 전송해주세요', '#ff0');
+addLog('---', '#fff');
+tryPath(0);
 </script>
 </body>
 </html>
-
