@@ -141,45 +141,37 @@ video.addEventListener('ended', function() {
     playTrack((currentIndex + 1) % playlist.length);
 });
 
-// IR Remote: number key input (1~12)
-var inputBuffer = '';
-var inputTimer = null;
-
+// IR Remote: single key → channel (1~12)
 document.addEventListener('keydown', function(e) {
+    var code = e.keyCode;
     // Debug: show keyCode
-    showOverlay('keyCode: ' + e.keyCode + ' | key: ' + e.key);
+    showOverlay('keyCode: ' + code + ' | key: ' + e.key);
 
-    var num = -1;
-    // 0-9 keys (keyboard top row)
-    if (e.keyCode >= 48 && e.keyCode <= 57) num = e.keyCode - 48;
-    // 0-9 keys (numpad)
-    else if (e.keyCode >= 96 && e.keyCode <= 105) num = e.keyCode - 96;
-    // Samsung remote number keys (may vary)
-    else if (e.key >= '0' && e.key <= '9') num = parseInt(e.key);
+    if (!playlist.length) return;
 
-    if (num >= 0) {
-        clearTimeout(inputTimer);
-        inputBuffer += num;
-        showOverlay('Input: ' + inputBuffer);
+    var ch = 0;
+    if (code === 49 || code === 97)  ch = 1;   // '1'
+    if (code === 50 || code === 98)  ch = 2;   // '2'
+    if (code === 51 || code === 99)  ch = 3;   // '3'
+    if (code === 52 || code === 100) ch = 4;   // '4'
+    if (code === 53 || code === 101) ch = 5;   // '5'
+    if (code === 54 || code === 102) ch = 6;   // '6'
+    if (code === 55 || code === 103) ch = 7;   // '7'
+    if (code === 56 || code === 104) ch = 8;   // '8'
+    if (code === 57 || code === 105) ch = 9;   // '9'
+    if (code === 48 || code === 96)  ch = 10;  // '0' → CH10
+    if (code === 404) ch = 11;                 // Green → CH11
+    if (code === 405) ch = 12;                 // Yellow → CH12
 
-        // Wait 800ms for second digit (for 10, 11, 12)
-        inputTimer = setTimeout(function() {
-            var idx = parseInt(inputBuffer);
-            inputBuffer = '';
-            if (idx >= 1 && idx <= playlist.length) {
-                playTrack(idx - 1);
-            } else {
-                showOverlay('Invalid: ' + idx + ' (1~' + playlist.length + ')');
-            }
-        }, 800);
+    if (ch >= 1 && ch <= playlist.length) {
+        playTrack(ch - 1);
         return;
     }
 
-    if (!playlist.length) return;
     // Arrow keys as fallback
-    if (e.keyCode === 39 || e.keyCode === 13) { // Right/Enter = next
+    if (code === 39 || code === 13) { // Right/Enter = next
         playTrack((currentIndex + 1) % playlist.length);
-    } else if (e.keyCode === 37) { // Left = prev
+    } else if (code === 37) { // Left = prev
         playTrack((currentIndex - 1 + playlist.length) % playlist.length);
     }
 });
