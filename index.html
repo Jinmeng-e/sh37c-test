@@ -6,72 +6,75 @@
 <title>SH37C Video Test</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html, body {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    background: #000;
-}
-video {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-#status {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: white;
-    font-family: Arial, sans-serif;
-    text-align: center;
-    font-size: 32px;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-}
-#info {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    color: rgba(255,255,255,0.7);
-    font-family: monospace;
-    font-size: 18px;
-    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+video { width: 100%; height: 100%; object-fit: cover; }
+#log {
+    position: absolute; top: 10px; left: 10px; right: 10px;
+    color: #0f0; font-family: monospace; font-size: 22px;
+    background: rgba(0,0,0,0.8); padding: 20px;
+    white-space: pre-wrap; max-height: 100%; overflow-y: auto;
 }
 </style>
 </head>
 <body>
 
-<video id="player" autoplay muted loop></video>
-<div id="status">Loading...</div>
-<div id="info"></div>
+<video id="player" autoplay muted loop playsinline></video>
+<div id="log">SH37C Video Test\n</div>
 
 <script>
 var video = document.getElementById('player');
-var status = document.getElementById('status');
-var info = document.getElementById('info');
+var logEl = document.getElementById('log');
 
-// Sample 4K video (Big Buck Bunny - public domain)
-var testUrl = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/2160/Big_Buck_Bunny_2160_10s_1MB.mp4';
+function log(msg) {
+    logEl.textContent += '\n' + msg;
+}
 
-video.src = testUrl;
+log('Viewport: ' + window.innerWidth + 'x' + window.innerHeight);
+log('Screen: ' + screen.width + 'x' + screen.height);
+log('UserAgent: ' + navigator.userAgent);
 
-video.addEventListener('loadeddata', function() {
-    status.style.display = 'none';
-    info.textContent = video.videoWidth + 'x' + video.videoHeight +
-        ' | viewport: ' + window.innerWidth + 'x' + window.innerHeight;
+var sources = [
+    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+    'https://www.w3schools.com/html/mov_bbb.mp4',
+    'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
+];
+
+var currentSource = 0;
+
+function trySource(idx) {
+    if (idx >= sources.length) {
+        log('ALL SOURCES FAILED');
+        return;
+    }
+    log('Trying source ' + (idx+1) + '/' + sources.length + '...');
+    log('URL: ' + sources[idx]);
+    video.src = sources[idx];
+    video.load();
+}
+
+video.addEventListener('loadstart', function() { log('Event: loadstart'); });
+video.addEventListener('loadedmetadata', function() {
+    log('Event: loadedmetadata - ' + video.videoWidth + 'x' + video.videoHeight);
 });
-
-video.addEventListener('error', function(e) {
-    status.textContent = 'VIDEO ERROR: ' + (video.error ? video.error.message : 'unknown');
-    status.style.color = '#ff4444';
-});
-
+video.addEventListener('loadeddata', function() { log('Event: loadeddata'); });
+video.addEventListener('canplay', function() { log('Event: canplay'); });
 video.addEventListener('playing', function() {
-    status.style.display = 'none';
+    log('PLAYING OK! ' + video.videoWidth + 'x' + video.videoHeight);
+    setTimeout(function() { logEl.style.display = 'none'; }, 3000);
+});
+video.addEventListener('waiting', function() { log('Event: waiting (buffering)'); });
+video.addEventListener('stalled', function() { log('Event: stalled'); });
+
+video.addEventListener('error', function() {
+    var code = video.error ? video.error.code : '?';
+    var msg = video.error ? video.error.message : 'unknown';
+    log('ERROR code=' + code + ' msg=' + msg);
+    log('Trying next source...');
+    currentSource++;
+    trySource(currentSource);
 });
 
-// Show viewport info
-info.textContent = 'viewport: ' + window.innerWidth + 'x' + window.innerHeight;
+trySource(0);
 </script>
 </body>
 </html>
