@@ -48,8 +48,8 @@ function playTrack(idx) {
     back.style.zIndex = '2';
     front.style.zIndex = '1';
 
-    back.oncanplaythrough = function() {
-        back.oncanplaythrough = null;
+    back.oncanplay = function() {
+        back.oncanplay = null;
         back.play();
         /* 3. 새 영상 fadein */
         back.style.opacity = '1';
@@ -92,8 +92,8 @@ document.addEventListener('keydown', function(e) {
 /* 첫 영상 - 충분히 버퍼링 후 재생 */
 front.src = getFile(1);
 front.load();
-front.oncanplaythrough = function() {
-    front.oncanplaythrough = null;
+front.oncanplay = function() {
+    front.oncanplay = null;
     front.style.zIndex = '2';
     front.style.visibility = 'visible';
     front.play();
