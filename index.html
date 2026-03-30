@@ -7,26 +7,51 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-video { width: 100%; height: 100%; object-fit: cover; }
+video {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%; object-fit: cover;
+}
 </style>
 </head>
 <body>
 
-<video id="player" autoplay loop playsinline preload="auto"></video>
+<video id="vA" autoplay loop playsinline></video>
+<video id="vB" loop playsinline style="visibility:hidden"></video>
 
 <script>
 var TOTAL = 12;
 var BASE = 'https://github.com/Jinmeng-e/sh37c-test/releases/download/v1.0/';
 var currentIndex = 0;
-var video = document.getElementById('player');
+var vA = document.getElementById('vA');
+var vB = document.getElementById('vB');
+var front = vA;
+var back = vB;
+var loading = false;
 
 function getFile(num) { return BASE + (num < 10 ? '0' + num : '' + num) + '.mp4'; }
 
 function playTrack(idx) {
-    if (idx < 0 || idx >= TOTAL) return;
+    if (idx < 0 || idx >= TOTAL || loading) return;
     currentIndex = idx;
-    video.src = getFile(idx + 1);
-    video.play();
+    loading = true;
+    back.src = getFile(idx + 1);
+    back.oncanplay = function() {
+        back.oncanplay = null;
+        back.play();
+        back.style.visibility = 'visible';
+        back.style.zIndex = '2';
+        front.style.zIndex = '1';
+        setTimeout(function() {
+            front.pause();
+            front.style.visibility = 'hidden';
+            front.src = '';
+            var tmp = front;
+            front = back;
+            back = tmp;
+            loading = false;
+        }, 100);
+    };
+    back.onerror = function() { loading = false; };
 }
 
 /* ── IR Remote ── */
@@ -48,7 +73,10 @@ document.addEventListener('keydown', function(e) {
     if (ch >= 1 && ch <= TOTAL) playTrack(ch - 1);
 });
 
-playTrack(0);
+/* 첫 영상 */
+front.src = getFile(1);
+front.style.zIndex = '2';
+front.style.visibility = 'visible';
 </script>
 </body>
 </html>
