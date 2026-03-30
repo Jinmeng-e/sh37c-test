@@ -3,78 +3,163 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1920, height=540, initial-scale=1.0">
-<title>SH37C Video Test</title>
+<title>SH37C Player</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-video { width: 100%; height: 100%; object-fit: cover; }
-#log {
-    position: absolute; top: 10px; left: 10px; right: 10px;
-    color: #0f0; font-family: monospace; font-size: 22px;
-    background: rgba(0,0,0,0.8); padding: 20px;
-    white-space: pre-wrap; max-height: 100%; overflow-y: auto;
+video { width: 100%; height: 100%; object-fit: cover; display: none; }
+#setup {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    width: 100%; height: 100%; color: white; font-family: Arial, sans-serif;
+}
+#setup h1 { font-size: 48px; margin-bottom: 30px; }
+#setup p { font-size: 24px; margin-bottom: 20px; color: #aaa; }
+#setup label {
+    display: inline-block; padding: 20px 60px; font-size: 28px;
+    background: #2196F3; color: white; border-radius: 10px; cursor: pointer;
+}
+#setup label:hover { background: #1976D2; }
+#fileInput { display: none; }
+#status {
+    margin-top: 20px; font-size: 22px; color: #0f0;
+    font-family: monospace; white-space: pre-wrap; text-align: center;
+}
+#overlay {
+    display: none; position: absolute; bottom: 20px; left: 50%;
+    transform: translateX(-50%); color: white; font-family: monospace;
+    font-size: 20px; background: rgba(0,0,0,0.7); padding: 10px 20px;
+    border-radius: 8px;
 }
 </style>
 </head>
 <body>
 
-<video id="player" autoplay muted loop playsinline></video>
-<div id="log">SH37C Video Test\n</div>
+<div id="setup">
+    <h1>SH37C Video Player</h1>
+    <p>USB에서 영상 파일을 선택하세요</p>
+    <label for="fileInput">파일 선택 (MP4)</label>
+    <input type="file" id="fileInput" multiple accept="video/mp4,video/*">
+    <div id="status"></div>
+</div>
+
+<video id="player" autoplay playsinline></video>
+<div id="overlay"></div>
 
 <script>
+var db;
+var playlist = [];
+var currentIndex = 0;
 var video = document.getElementById('player');
-var logEl = document.getElementById('log');
+var setupEl = document.getElementById('setup');
+var statusEl = document.getElementById('status');
+var overlayEl = document.getElementById('overlay');
 
-function log(msg) {
-    logEl.textContent += '\n' + msg;
+// IndexedDB
+function openDB(cb) {
+    var req = indexedDB.open('sh37c_videos', 1);
+    req.onupgradeneeded = function(e) {
+        var d = e.target.result;
+        if (!d.objectStoreNames.contains('videos')) d.createObjectStore('videos');
+        if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta');
+    };
+    req.onsuccess = function(e) { db = e.target.result; cb(); };
+    req.onerror = function() { statusEl.textContent = 'IndexedDB error'; };
 }
 
-log('Viewport: ' + window.innerWidth + 'x' + window.innerHeight);
-log('Screen: ' + screen.width + 'x' + screen.height);
-log('UserAgent: ' + navigator.userAgent);
+function saveVideo(name, blob, cb) {
+    var tx = db.transaction('videos', 'readwrite');
+    tx.objectStore('videos').put(blob, name);
+    tx.oncomplete = cb;
+}
 
-var sources = [
-    'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
-    'https://www.w3schools.com/html/mov_bbb.mp4',
-    'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
-];
+function saveMeta(names) {
+    var tx = db.transaction('meta', 'readwrite');
+    tx.objectStore('meta').put(names, 'playlist');
+}
 
-var currentSource = 0;
+function loadPlaylist(cb) {
+    var tx = db.transaction('meta', 'readonly');
+    var req = tx.objectStore('meta').get('playlist');
+    req.onsuccess = function() { cb(req.result || null); };
+}
 
-function trySource(idx) {
-    if (idx >= sources.length) {
-        log('ALL SOURCES FAILED');
-        return;
+function loadVideo(name, cb) {
+    var tx = db.transaction('videos', 'readonly');
+    var req = tx.objectStore('videos').get(name);
+    req.onsuccess = function() { cb(req.result); };
+}
+
+// File import
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    var files = Array.from(e.target.files).sort(function(a,b) {
+        return a.name.localeCompare(b.name);
+    });
+    if (!files.length) return;
+    statusEl.textContent = 'Saving ' + files.length + ' files...';
+    var saved = 0;
+    var names = files.map(function(f) { return f.name; });
+    files.forEach(function(file) {
+        saveVideo(file.name, file, function() {
+            saved++;
+            statusEl.textContent = 'Saved ' + saved + '/' + files.length + ': ' + file.name;
+            if (saved === files.length) {
+                saveMeta(names);
+                statusEl.textContent = 'Done! Starting playback...';
+                setTimeout(function() { startPlayer(names); }, 1000);
+            }
+        });
+    });
+});
+
+// Player
+function startPlayer(names) {
+    playlist = names;
+    currentIndex = 0;
+    setupEl.style.display = 'none';
+    video.style.display = 'block';
+    playTrack(0);
+}
+
+function playTrack(idx) {
+    currentIndex = idx;
+    loadVideo(playlist[idx], function(blob) {
+        if (!blob) { statusEl.textContent = 'File not found: ' + playlist[idx]; return; }
+        var url = URL.createObjectURL(blob);
+        video.src = url;
+        video.play();
+        showOverlay((idx+1) + '/' + playlist.length + ' : ' + playlist[idx]);
+    });
+}
+
+function showOverlay(text) {
+    overlayEl.textContent = text;
+    overlayEl.style.display = 'block';
+    setTimeout(function() { overlayEl.style.display = 'none'; }, 3000);
+}
+
+video.addEventListener('ended', function() {
+    playTrack((currentIndex + 1) % playlist.length);
+});
+
+// Remote control (arrow keys)
+document.addEventListener('keydown', function(e) {
+    if (!playlist.length) return;
+    if (e.keyCode === 39 || e.keyCode === 13) { // Right or Enter = next
+        playTrack((currentIndex + 1) % playlist.length);
+    } else if (e.keyCode === 37) { // Left = prev
+        playTrack((currentIndex - 1 + playlist.length) % playlist.length);
     }
-    log('Trying source ' + (idx+1) + '/' + sources.length + '...');
-    log('URL: ' + sources[idx]);
-    video.src = sources[idx];
-    video.load();
-}
-
-video.addEventListener('loadstart', function() { log('Event: loadstart'); });
-video.addEventListener('loadedmetadata', function() {
-    log('Event: loadedmetadata - ' + video.videoWidth + 'x' + video.videoHeight);
-});
-video.addEventListener('loadeddata', function() { log('Event: loadeddata'); });
-video.addEventListener('canplay', function() { log('Event: canplay'); });
-video.addEventListener('playing', function() {
-    log('PLAYING OK! ' + video.videoWidth + 'x' + video.videoHeight);
-    setTimeout(function() { logEl.style.display = 'none'; }, 3000);
-});
-video.addEventListener('waiting', function() { log('Event: waiting (buffering)'); });
-video.addEventListener('stalled', function() { log('Event: stalled'); });
-
-video.addEventListener('error', function() {
-    var code = video.error ? video.error.code : '?';
-    var msg = video.error ? video.error.message : 'unknown';
-    log('ERROR code=' + code + ' msg=' + msg);
-    log('Trying next source...');
-    currentSource++;
-    trySource(currentSource);
 });
 
-trySource(0);
+// Init: check for saved playlist
+openDB(function() {
+    loadPlaylist(function(names) {
+        if (names && names.length > 0) {
+            statusEl.textContent = 'Saved playlist found (' + names.length + ' videos)\nLoading...';
+            startPlayer(names);
+        }
+    });
+});
 </script>
 </body>
 </html>
