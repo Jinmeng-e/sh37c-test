@@ -36,38 +36,33 @@ function playTrack(idx) {
     currentIndex = idx;
     loading = true;
 
-    /* 1. 현재 영상 fadeout */
-    front.style.opacity = '0';
-
-    /* 2. 뒤에서 새 영상 로드 */
+    /* 1. 뒤에서 새 영상 로드 (현재 영상은 계속 재생) */
     back.preload = 'auto';
     back.src = getFile(idx + 1);
     back.load();
     back.style.opacity = '0';
     back.style.visibility = 'visible';
-    back.style.zIndex = '2';
-    front.style.zIndex = '1';
+    back.style.zIndex = '3';
+    front.style.zIndex = '2';
 
     back.oncanplay = function() {
         back.oncanplay = null;
         back.play();
-        /* 3. 새 영상 fadein */
-        back.style.opacity = '1';
+        /* 2. 새 영상 fadein (현재 영상 위에 겹쳐서) */
+        setTimeout(function() { back.style.opacity = '1'; }, 50);
         setTimeout(function() {
             front.pause();
             front.style.visibility = 'hidden';
+            front.style.opacity = '0';
             front.removeAttribute('src');
             front.load();
             var tmp = front;
             front = back;
             back = tmp;
             loading = false;
-        }, 2100);
+        }, 2200);
     };
-    back.onerror = function() {
-        front.style.opacity = '1';
-        loading = false;
-    };
+    back.onerror = function() { loading = false; };
 }
 
 /* ── IR Remote ── */
