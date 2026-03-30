@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920, height=540, initial-scale=1.0">
+<title>SH37C 32:9 Test</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: #ff0000;
+}
+.info {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    font-size: 36px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+.info .big { font-size: 60px; font-weight: bold; margin-bottom: 20px; }
+.info .detail { font-size: 28px; margin-top: 10px; }
+.corner {
+    position: absolute;
+    width: 80px;
+    height: 80px;
+    border: 6px solid white;
+}
+.tl { top: 0; left: 0; border-right: none; border-bottom: none; }
+.tr { top: 0; right: 0; border-left: none; border-bottom: none; }
+.bl { bottom: 0; left: 0; border-right: none; border-top: none; }
+.br { bottom: 0; right: 0; border-left: none; border-top: none; }
+.edge-marker {
+    position: absolute;
+    background: white;
+    font-size: 14px;
+    color: black;
+    padding: 2px 8px;
+}
+</style>
+</head>
+<body>
+<div class="corner tl"></div>
+<div class="corner tr"></div>
+<div class="corner bl"></div>
+<div class="corner br"></div>
+
+<div class="edge-marker" style="top:0;left:50%;transform:translateX(-50%);">TOP</div>
+<div class="edge-marker" style="bottom:0;left:50%;transform:translateX(-50%);">BOTTOM</div>
+<div class="edge-marker" style="top:50%;left:0;transform:translateY(-50%);">LEFT</div>
+<div class="edge-marker" style="top:50%;right:0;transform:translateY(-50%);">RIGHT</div>
+
+<div class="info">
+    <div class="big">SH37C 32:9 TEST</div>
+    <div>Expected: 1920 x 540</div>
+    <div class="detail" id="actual"></div>
+    <div class="detail" id="screen"></div>
+    <div class="detail" id="ratio"></div>
+</div>
+
+<script>
+function updateInfo() {
+    var w = window.innerWidth;
+    var h = window.innerHeight;
+    var sw = screen.width;
+    var sh = screen.height;
+    document.getElementById('actual').textContent = 'Actual viewport: ' + w + ' x ' + h;
+    document.getElementById('screen').textContent = 'Screen: ' + sw + ' x ' + sh;
+    var r = (w / h).toFixed(2);
+    var label = '';
+    if (r > 3.0) label = '32:9 OK!';
+    else if (r > 1.5) label = '16:9 (LETTERBOXED)';
+    else label = 'Unknown';
+    document.getElementById('ratio').textContent = 'Ratio: ' + r + ' → ' + label;
+}
+updateInfo();
+window.addEventListener('resize', updateInfo);
+</script>
+</body>
+</html>
+
