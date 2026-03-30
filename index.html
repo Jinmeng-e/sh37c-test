@@ -29,7 +29,7 @@ video { width: 100%; height: 100%; object-fit: cover; }
 
 <script>
 var TOTAL = 12;
-var BASE = '/home/owner/share/magicinfo/content/';
+var BASE = 'https://github.com/Jinmeng-e/sh37c-test/releases/download/v1.0/';
 var currentIndex = 0;
 var video = document.getElementById('player');
 var overlayEl = document.getElementById('overlay');
@@ -50,7 +50,7 @@ function playTrack(idx) {
     if (idx < 0 || idx >= TOTAL) return;
     currentIndex = idx;
     var src = getFile(idx + 1);
-    setStatus('Loading CH ' + (idx+1) + '...\n' + src);
+    setStatus('Loading CH ' + (idx+1) + '...');
     video.src = src;
     video.play();
     showOverlay('CH ' + (idx + 1));
@@ -63,7 +63,7 @@ video.addEventListener('ended', function() {
 });
 
 video.addEventListener('error', function() {
-    setStatus('ERROR: ' + getFile(currentIndex + 1) + '\nnot found');
+    setStatus('ERROR: CH ' + (currentIndex + 1) + ' load failed');
 });
 
 /* ── IR Remote ── */
