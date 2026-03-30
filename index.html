@@ -15,8 +15,8 @@ video {
 </head>
 <body>
 
-<video id="vA" autoplay loop playsinline></video>
-<video id="vB" loop playsinline style="visibility:hidden"></video>
+<video id="vA" loop playsinline preload="auto"></video>
+<video id="vB" loop playsinline preload="auto" style="visibility:hidden"></video>
 
 <script>
 var TOTAL = 12;
@@ -34,9 +34,11 @@ function playTrack(idx) {
     if (idx < 0 || idx >= TOTAL || loading) return;
     currentIndex = idx;
     loading = true;
+    back.preload = 'auto';
     back.src = getFile(idx + 1);
-    back.oncanplay = function() {
-        back.oncanplay = null;
+    back.load();
+    back.oncanplaythrough = function() {
+        back.oncanplaythrough = null;
         back.play();
         back.style.visibility = 'visible';
         back.style.zIndex = '2';
@@ -44,7 +46,8 @@ function playTrack(idx) {
         setTimeout(function() {
             front.pause();
             front.style.visibility = 'hidden';
-            front.src = '';
+            front.removeAttribute('src');
+            front.load();
             var tmp = front;
             front = back;
             back = tmp;
@@ -73,10 +76,15 @@ document.addEventListener('keydown', function(e) {
     if (ch >= 1 && ch <= TOTAL) playTrack(ch - 1);
 });
 
-/* 첫 영상 */
+/* 첫 영상 - 충분히 버퍼링 후 재생 */
 front.src = getFile(1);
-front.style.zIndex = '2';
-front.style.visibility = 'visible';
+front.load();
+front.oncanplaythrough = function() {
+    front.oncanplaythrough = null;
+    front.style.zIndex = '2';
+    front.style.visibility = 'visible';
+    front.play();
+};
 </script>
 </body>
 </html>
