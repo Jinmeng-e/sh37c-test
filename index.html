@@ -10,7 +10,7 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
 video {
     position: absolute; top: 0; left: 0;
     width: 100%; height: 100%; object-fit: cover;
-    transition: opacity 2s ease;
+
 }
 </style>
 </head>
@@ -27,16 +27,33 @@ var vA = document.getElementById('vA');
 var vB = document.getElementById('vB');
 var front = vA;
 var back = vB;
-var loading = false;
+var swapTimer = null;
+var pendingIdx = -1;
 
 function getFile(num) { return BASE + (num < 10 ? '0' + num : '' + num) + '.mp4'; }
 
-function playTrack(idx) {
-    if (idx < 0 || idx >= TOTAL || loading) return;
-    currentIndex = idx;
-    loading = true;
+function cancelPending() {
+    if (swapTimer) { clearTimeout(swapTimer); swapTimer = null; }
+    back.oncanplay = null;
+    back.onerror = null;
+    back.pause();
+    back.removeAttribute('src');
+    back.style.opacity = '0';
+    back.style.visibility = 'hidden';
+    pendingIdx = -1;
+}
 
-    /* 1. 뒤에서 새 영상 로드 (현재 영상은 계속 재생) */
+function playTrack(idx) {
+    if (idx < 0 || idx >= TOTAL) return;
+    if (idx === currentIndex && front.src) return;
+
+    /* 이전 전환 진행중이면 즉시 취소 */
+    cancelPending();
+
+    currentIndex = idx;
+    pendingIdx = idx;
+
+    /* 뒤에서 새 영상 로드 (현재 영상은 계속 재생) */
     back.preload = 'auto';
     back.src = getFile(idx + 1);
     back.load();
@@ -45,24 +62,23 @@ function playTrack(idx) {
     back.style.zIndex = '3';
     front.style.zIndex = '2';
 
+    var requestedIdx = idx;
     back.oncanplay = function() {
         back.oncanplay = null;
+        if (pendingIdx !== requestedIdx) return; /* 이미 다른 채널 요청됨 */
         back.play();
-        /* 2. 새 영상 fadein (현재 영상 위에 겹쳐서) */
-        setTimeout(function() { back.style.opacity = '1'; }, 50);
-        setTimeout(function() {
-            front.pause();
-            front.style.visibility = 'hidden';
-            front.style.opacity = '0';
-            front.removeAttribute('src');
-            front.load();
-            var tmp = front;
-            front = back;
-            back = tmp;
-            loading = false;
-        }, 2200);
+        back.style.opacity = '1';
+        front.pause();
+        front.style.visibility = 'hidden';
+        front.style.opacity = '0';
+        front.removeAttribute('src');
+        front.load();
+        var tmp = front;
+        front = back;
+        back = tmp;
+        pendingIdx = -1;
     };
-    back.onerror = function() { loading = false; };
+    back.onerror = function() { pendingIdx = -1; };
 }
 
 /* ── IR Remote ── */
