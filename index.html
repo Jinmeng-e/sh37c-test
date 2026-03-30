@@ -141,10 +141,43 @@ video.addEventListener('ended', function() {
     playTrack((currentIndex + 1) % playlist.length);
 });
 
-// Remote control (arrow keys)
+// IR Remote: number key input (1~12)
+var inputBuffer = '';
+var inputTimer = null;
+
 document.addEventListener('keydown', function(e) {
+    // Debug: show keyCode
+    showOverlay('keyCode: ' + e.keyCode + ' | key: ' + e.key);
+
+    var num = -1;
+    // 0-9 keys (keyboard top row)
+    if (e.keyCode >= 48 && e.keyCode <= 57) num = e.keyCode - 48;
+    // 0-9 keys (numpad)
+    else if (e.keyCode >= 96 && e.keyCode <= 105) num = e.keyCode - 96;
+    // Samsung remote number keys (may vary)
+    else if (e.key >= '0' && e.key <= '9') num = parseInt(e.key);
+
+    if (num >= 0) {
+        clearTimeout(inputTimer);
+        inputBuffer += num;
+        showOverlay('Input: ' + inputBuffer);
+
+        // Wait 800ms for second digit (for 10, 11, 12)
+        inputTimer = setTimeout(function() {
+            var idx = parseInt(inputBuffer);
+            inputBuffer = '';
+            if (idx >= 1 && idx <= playlist.length) {
+                playTrack(idx - 1);
+            } else {
+                showOverlay('Invalid: ' + idx + ' (1~' + playlist.length + ')');
+            }
+        }, 800);
+        return;
+    }
+
     if (!playlist.length) return;
-    if (e.keyCode === 39 || e.keyCode === 13) { // Right or Enter = next
+    // Arrow keys as fallback
+    if (e.keyCode === 39 || e.keyCode === 13) { // Right/Enter = next
         playTrack((currentIndex + 1) % playlist.length);
     } else if (e.keyCode === 37) { // Left = prev
         playTrack((currentIndex - 1 + playlist.length) % playlist.length);
