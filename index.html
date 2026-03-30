@@ -3,16 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=1920, height=540, initial-scale=1.0">
-<title>SH37C 32:9 Test</title>
+<title>SH37C Video Test</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #ff0000;
+    background: #000;
 }
-.info {
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+#status {
     position: absolute;
     top: 50%;
     left: 50%;
@@ -20,66 +25,53 @@ html, body {
     color: white;
     font-family: Arial, sans-serif;
     text-align: center;
-    font-size: 36px;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    font-size: 32px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
 }
-.info .big { font-size: 60px; font-weight: bold; margin-bottom: 20px; }
-.info .detail { font-size: 28px; margin-top: 10px; }
-.corner {
+#info {
     position: absolute;
-    width: 80px;
-    height: 80px;
-    border: 6px solid white;
-}
-.tl { top: 0; left: 0; border-right: none; border-bottom: none; }
-.tr { top: 0; right: 0; border-left: none; border-bottom: none; }
-.bl { bottom: 0; left: 0; border-right: none; border-top: none; }
-.br { bottom: 0; right: 0; border-left: none; border-top: none; }
-.edge-marker {
-    position: absolute;
-    background: white;
-    font-size: 14px;
-    color: black;
-    padding: 2px 8px;
+    bottom: 10px;
+    right: 10px;
+    color: rgba(255,255,255,0.7);
+    font-family: monospace;
+    font-size: 18px;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
 }
 </style>
 </head>
 <body>
-<div class="corner tl"></div>
-<div class="corner tr"></div>
-<div class="corner bl"></div>
-<div class="corner br"></div>
 
-<div class="edge-marker" style="top:0;left:50%;transform:translateX(-50%);">TOP</div>
-<div class="edge-marker" style="bottom:0;left:50%;transform:translateX(-50%);">BOTTOM</div>
-<div class="edge-marker" style="top:50%;left:0;transform:translateY(-50%);">LEFT</div>
-<div class="edge-marker" style="top:50%;right:0;transform:translateY(-50%);">RIGHT</div>
-
-<div class="info">
-    <div class="big">SH37C 32:9 TEST</div>
-    <div>Expected: 1920 x 540</div>
-    <div class="detail" id="actual"></div>
-    <div class="detail" id="screen"></div>
-    <div class="detail" id="ratio"></div>
-</div>
+<video id="player" autoplay muted loop></video>
+<div id="status">Loading...</div>
+<div id="info"></div>
 
 <script>
-function updateInfo() {
-    var w = window.innerWidth;
-    var h = window.innerHeight;
-    var sw = screen.width;
-    var sh = screen.height;
-    document.getElementById('actual').textContent = 'Actual viewport: ' + w + ' x ' + h;
-    document.getElementById('screen').textContent = 'Screen: ' + sw + ' x ' + sh;
-    var r = (w / h).toFixed(2);
-    var label = '';
-    if (r > 3.0) label = '32:9 OK!';
-    else if (r > 1.5) label = '16:9 (LETTERBOXED)';
-    else label = 'Unknown';
-    document.getElementById('ratio').textContent = 'Ratio: ' + r + ' → ' + label;
-}
-updateInfo();
-window.addEventListener('resize', updateInfo);
+var video = document.getElementById('player');
+var status = document.getElementById('status');
+var info = document.getElementById('info');
+
+// Sample 4K video (Big Buck Bunny - public domain)
+var testUrl = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/2160/Big_Buck_Bunny_2160_10s_1MB.mp4';
+
+video.src = testUrl;
+
+video.addEventListener('loadeddata', function() {
+    status.style.display = 'none';
+    info.textContent = video.videoWidth + 'x' + video.videoHeight +
+        ' | viewport: ' + window.innerWidth + 'x' + window.innerHeight;
+});
+
+video.addEventListener('error', function(e) {
+    status.textContent = 'VIDEO ERROR: ' + (video.error ? video.error.message : 'unknown');
+    status.style.color = '#ff4444';
+});
+
+video.addEventListener('playing', function() {
+    status.style.display = 'none';
+});
+
+// Show viewport info
+info.textContent = 'viewport: ' + window.innerWidth + 'x' + window.innerHeight;
 </script>
 </body>
 </html>
