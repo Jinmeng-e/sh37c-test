@@ -7,129 +7,68 @@
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
-video { width: 100%; height: 100%; object-fit: cover; display: none; }
-#setup {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    width: 100%; height: 100%; color: white; font-family: Arial, sans-serif;
-}
-#setup h1 { font-size: 48px; margin-bottom: 30px; }
-#setup p { font-size: 24px; margin-bottom: 20px; color: #aaa; }
-#setup label {
-    display: inline-block; padding: 20px 60px; font-size: 28px;
-    background: #2196F3; color: white; border-radius: 10px; cursor: pointer;
-}
-#setup label:hover { background: #1976D2; }
-#fileInput { display: none; }
-#status {
-    margin-top: 20px; font-size: 22px; color: #0f0;
-    font-family: monospace; white-space: pre-wrap; text-align: center;
-}
+video { width: 100%; height: 100%; object-fit: cover; }
 #overlay {
     display: none; position: absolute; bottom: 20px; left: 50%;
     transform: translateX(-50%); color: white; font-family: monospace;
     font-size: 20px; background: rgba(0,0,0,0.7); padding: 10px 20px;
-    border-radius: 8px;
+    border-radius: 8px; z-index: 10;
+}
+#status {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+    color: #0f0; font-family: monospace; font-size: 24px;
+    text-align: center; white-space: pre-wrap; z-index: 10;
 }
 </style>
 </head>
 <body>
 
-<div id="setup">
-    <h1>SH37C Video Player</h1>
-    <p>USB에서 영상 파일을 선택하세요</p>
-    <label for="fileInput">파일 선택 (MP4)</label>
-    <input type="file" id="fileInput" multiple accept="video/mp4,video/*">
-    <div id="status"></div>
-</div>
-
 <video id="player" autoplay playsinline></video>
 <div id="overlay"></div>
+<div id="status">Initializing...</div>
 
 <script>
-var db;
-var playlist = [];
+var TOTAL = 12;
 var currentIndex = 0;
 var video = document.getElementById('player');
-var setupEl = document.getElementById('setup');
-var statusEl = document.getElementById('status');
 var overlayEl = document.getElementById('overlay');
+var statusEl = document.getElementById('status');
+var db;
 
-// IndexedDB
+/* ── IndexedDB ── */
 function openDB(cb) {
-    var req = indexedDB.open('sh37c_videos', 1);
+    var req = indexedDB.open('sh37c_player', 1);
     req.onupgradeneeded = function(e) {
         var d = e.target.result;
         if (!d.objectStoreNames.contains('videos')) d.createObjectStore('videos');
-        if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta');
     };
     req.onsuccess = function(e) { db = e.target.result; cb(); };
-    req.onerror = function() { statusEl.textContent = 'IndexedDB error'; };
+    req.onerror = function() { setStatus('IndexedDB error'); };
 }
 
-function saveVideo(name, blob, cb) {
+function dbPut(key, blob, cb) {
     var tx = db.transaction('videos', 'readwrite');
-    tx.objectStore('videos').put(blob, name);
-    tx.oncomplete = cb;
+    tx.objectStore('videos').put(blob, key);
+    tx.oncomplete = function() { cb(true); };
+    tx.onerror = function() { cb(false); };
 }
 
-function saveMeta(names) {
-    var tx = db.transaction('meta', 'readwrite');
-    tx.objectStore('meta').put(names, 'playlist');
-}
-
-function loadPlaylist(cb) {
-    var tx = db.transaction('meta', 'readonly');
-    var req = tx.objectStore('meta').get('playlist');
-    req.onsuccess = function() { cb(req.result || null); };
-}
-
-function loadVideo(name, cb) {
+function dbGet(key, cb) {
     var tx = db.transaction('videos', 'readonly');
-    var req = tx.objectStore('videos').get(name);
+    var req = tx.objectStore('videos').get(key);
+    req.onsuccess = function() { cb(req.result || null); };
+    req.onerror = function() { cb(null); };
+}
+
+function dbCount(cb) {
+    var tx = db.transaction('videos', 'readonly');
+    var req = tx.objectStore('videos').count();
     req.onsuccess = function() { cb(req.result); };
 }
 
-// File import
-document.getElementById('fileInput').addEventListener('change', function(e) {
-    var files = Array.from(e.target.files).sort(function(a,b) {
-        return a.name.localeCompare(b.name);
-    });
-    if (!files.length) return;
-    statusEl.textContent = 'Saving ' + files.length + ' files...';
-    var saved = 0;
-    var names = files.map(function(f) { return f.name; });
-    files.forEach(function(file) {
-        saveVideo(file.name, file, function() {
-            saved++;
-            statusEl.textContent = 'Saved ' + saved + '/' + files.length + ': ' + file.name;
-            if (saved === files.length) {
-                saveMeta(names);
-                statusEl.textContent = 'Done! Starting playback...';
-                setTimeout(function() { startPlayer(names); }, 1000);
-            }
-        });
-    });
-});
-
-// Player
-function startPlayer(names) {
-    playlist = names;
-    currentIndex = 0;
-    setupEl.style.display = 'none';
-    video.style.display = 'block';
-    playTrack(0);
-}
-
-function playTrack(idx) {
-    currentIndex = idx;
-    loadVideo(playlist[idx], function(blob) {
-        if (!blob) { statusEl.textContent = 'File not found: ' + playlist[idx]; return; }
-        var url = URL.createObjectURL(blob);
-        video.src = url;
-        video.play();
-        showOverlay((idx+1) + '/' + playlist.length + ' : ' + playlist[idx]);
-    });
-}
+/* ── UI ── */
+function setStatus(msg) { statusEl.textContent = msg; statusEl.style.display = 'block'; }
+function hideStatus() { statusEl.style.display = 'none'; }
 
 function showOverlay(text) {
     overlayEl.textContent = text;
@@ -137,51 +76,129 @@ function showOverlay(text) {
     setTimeout(function() { overlayEl.style.display = 'none'; }, 3000);
 }
 
+/* ── Player ── */
+function playFromDB(idx) {
+    currentIndex = idx;
+    var key = getKey(idx + 1);
+    dbGet(key, function(blob) {
+        if (!blob) { showOverlay('CH ' + (idx+1) + ' not found'); return; }
+        var url = URL.createObjectURL(blob);
+        video.onloadeddata = function() { hideStatus(); };
+        video.src = url;
+        video.play();
+        showOverlay('CH ' + (idx + 1));
+    });
+}
+
+function getKey(num) { return num < 10 ? '0' + num : '' + num; }
+
 video.addEventListener('ended', function() {
-    playTrack((currentIndex + 1) % playlist.length);
+    playFromDB(currentIndex);
 });
 
-// IR Remote: single key → channel (1~12)
+/* ── USB Auto-Import ── */
+var USB_PATHS = [
+    '/opt/storage/usb/',
+    '/opt/storage/usb0/',
+    '/opt/storage/usb1/',
+    '/opt/storage/usb/USB_DRIVE/',
+    '/media/USBDrive/',
+    '/run/media/',
+    'videos/'
+];
+
+function tryFetchVideo(num, pathIdx, cb) {
+    if (pathIdx >= USB_PATHS.length) { cb(false); return; }
+    var fname = getKey(num) + '.mp4';
+    var url = USB_PATHS[pathIdx] + fname;
+    setStatus('Scanning USB...\n' + url);
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.responseType = 'blob';
+    xhr.timeout = 3000;
+    xhr.onload = function() {
+        if (xhr.status === 200 || xhr.status === 0) {
+            cb(true, xhr.response, USB_PATHS[pathIdx]);
+        } else {
+            tryFetchVideo(num, pathIdx + 1, cb);
+        }
+    };
+    xhr.onerror = function() { tryFetchVideo(num, pathIdx + 1, cb); };
+    xhr.ontimeout = function() { tryFetchVideo(num, pathIdx + 1, cb); };
+    xhr.send();
+}
+
+function importAllFromUSB(basePath, cb) {
+    var imported = 0;
+    function next(num) {
+        if (num > TOTAL) { cb(imported); return; }
+        var fname = getKey(num) + '.mp4';
+        var url = basePath + fname;
+        setStatus('Importing from USB...\n' + imported + '/' + TOTAL + '\n' + fname);
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.responseType = 'blob';
+        xhr.timeout = 120000;
+        xhr.onload = function() {
+            if (xhr.status === 200 || xhr.status === 0) {
+                dbPut(getKey(num), xhr.response, function() {
+                    imported++;
+                    setStatus('Saved ' + imported + '/' + TOTAL + '\n' + fname);
+                    next(num + 1);
+                });
+            } else {
+                next(num + 1);
+            }
+        };
+        xhr.onerror = function() { next(num + 1); };
+        xhr.ontimeout = function() { next(num + 1); };
+        xhr.send();
+    }
+    next(1);
+}
+
+/* ── IR Remote ── */
 document.addEventListener('keydown', function(e) {
     var code = e.keyCode;
-    // Debug: show keyCode
-    showOverlay('keyCode: ' + code + ' | key: ' + e.key);
-
-    if (!playlist.length) return;
-
+    showOverlay('keyCode: ' + code);
     var ch = 0;
-    if (code === 49 || code === 97)  ch = 1;   // '1'
-    if (code === 50 || code === 98)  ch = 2;   // '2'
-    if (code === 51 || code === 99)  ch = 3;   // '3'
-    if (code === 52 || code === 100) ch = 4;   // '4'
-    if (code === 53 || code === 101) ch = 5;   // '5'
-    if (code === 54 || code === 102) ch = 6;   // '6'
-    if (code === 55 || code === 103) ch = 7;   // '7'
-    if (code === 56 || code === 104) ch = 8;   // '8'
-    if (code === 57 || code === 105) ch = 9;   // '9'
-    if (code === 48 || code === 96)  ch = 10;  // '0' → CH10
-    if (code === 404) ch = 11;                 // Green → CH11
-    if (code === 405) ch = 12;                 // Yellow → CH12
-
-    if (ch >= 1 && ch <= playlist.length) {
-        playTrack(ch - 1);
-        return;
-    }
-
-    // Arrow keys as fallback
-    if (code === 39 || code === 13) { // Right/Enter = next
-        playTrack((currentIndex + 1) % playlist.length);
-    } else if (code === 37) { // Left = prev
-        playTrack((currentIndex - 1 + playlist.length) % playlist.length);
-    }
+    if (code === 49 || code === 97)  ch = 1;
+    if (code === 50 || code === 98)  ch = 2;
+    if (code === 51 || code === 99)  ch = 3;
+    if (code === 52 || code === 100) ch = 4;
+    if (code === 53 || code === 101) ch = 5;
+    if (code === 54 || code === 102) ch = 6;
+    if (code === 55 || code === 103) ch = 7;
+    if (code === 56 || code === 104) ch = 8;
+    if (code === 57 || code === 105) ch = 9;
+    if (code === 48 || code === 96)  ch = 10;
+    if (code === 404) ch = 11;
+    if (code === 405) ch = 12;
+    if (ch >= 1 && ch <= TOTAL) playFromDB(ch - 1);
 });
 
-// Init: check for saved playlist
+/* ── Init ── */
 openDB(function() {
-    loadPlaylist(function(names) {
-        if (names && names.length > 0) {
-            statusEl.textContent = 'Saved playlist found (' + names.length + ' videos)\nLoading...';
-            startPlayer(names);
+    dbCount(function(count) {
+        if (count >= TOTAL) {
+            setStatus('Stored videos found (' + count + ')\nStarting...');
+            playFromDB(0);
+        } else {
+            setStatus('Searching USB for videos...');
+            tryFetchVideo(1, 0, function(found, blob, basePath) {
+                if (found) {
+                    dbPut(getKey(1), blob, function() {
+                        importAllFromUSB(basePath, function(total) {
+                            setStatus('Import complete: ' + total + ' videos\nStarting...');
+                            setTimeout(function() { playFromDB(0); }, 1000);
+                        });
+                    });
+                } else {
+                    setStatus('No USB videos found.\n\nUSB structure:\n  videos/01.mp4\n  videos/02.mp4\n  ...\n  videos/12.mp4\n\nPlug USB and refresh.');
+                }
+            });
         }
     });
 });
