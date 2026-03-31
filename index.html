@@ -15,18 +15,14 @@ video {
 </head>
 <body>
 
-<video id="vA" loop playsinline muted></video>
-<video id="vB" loop playsinline muted style="visibility:hidden"></video>
+<video id="player" loop playsinline muted></video>
 
 <script>
 var TOTAL = 12;
 var BASE = 'https://pub-4702f6b2fa2043cba545ed8b55e7f952.r2.dev/';
 var currentIndex = -1;
-var blobUrls = [];   /* 메모리에 캐시된 blob URL */
-var vA = document.getElementById('vA');
-var vB = document.getElementById('vB');
-var front = vA;
-var back = vB;
+var blobUrls = [];
+var player = document.getElementById('player');
 
 function getFile(num) { return BASE + (num < 10 ? '0' + num : '' + num) + '.webm'; }
 
@@ -42,7 +38,6 @@ function preloadAll() {
                     console.log('[Preload] ' + (idx+1) + '/' + TOTAL + ' done');
                 })
                 .catch(function(e) {
-                    /* 실패하면 원본 URL 사용 */
                     blobUrls[idx] = getFile(idx + 1);
                     console.log('[Preload] ' + (idx+1) + ' failed, using URL');
                 });
@@ -52,45 +47,14 @@ function preloadAll() {
     return Promise.all(promises);
 }
 
-/* ── 채널 전환 ── */
+/* ── 채널 전환: 단순하게 src 교체 ── */
 function playTrack(idx) {
     if (idx < 0 || idx >= TOTAL) return;
     if (idx === currentIndex) return;
-
     currentIndex = idx;
-    var url = blobUrls[idx] || getFile(idx + 1);
 
-    /* 이전 back 이벤트 제거 */
-    back.onloadeddata = null;
-    back.oncanplay = null;
-
-    back.src = url;
-    back.load();
-
-    back.onloadeddata = function() {
-        back.onloadeddata = null;
-        back.play().then(function() {
-            back.style.visibility = 'visible';
-            back.style.zIndex = '3';
-            front.style.zIndex = '1';
-            front.pause();
-            front.style.visibility = 'hidden';
-            var tmp = front;
-            front = back;
-            back = tmp;
-        }).catch(function(e) {
-            console.log('[Play error]', e);
-            /* play 실패해도 강제 전환 */
-            back.style.visibility = 'visible';
-            back.style.zIndex = '3';
-            front.style.zIndex = '1';
-            front.pause();
-            front.style.visibility = 'hidden';
-            var tmp = front;
-            front = back;
-            back = tmp;
-        });
-    };
+    player.src = blobUrls[idx] || getFile(idx + 1);
+    player.play();
 }
 
 /* ── IR Remote ── */
@@ -121,7 +85,7 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-/* ── 시작: 전부 다운로드 후 첫 영상 재생 ── */
+/* ── 시작 ── */
 preloadAll().then(function() {
     console.log('[Ready] All videos in memory');
     playTrack(0);
