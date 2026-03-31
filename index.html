@@ -60,22 +60,36 @@ function playTrack(idx) {
     currentIndex = idx;
     var url = blobUrls[idx] || getFile(idx + 1);
 
+    /* 이전 back 이벤트 제거 */
+    back.onloadeddata = null;
+    back.oncanplay = null;
+
     back.src = url;
     back.load();
-    back.style.visibility = 'visible';
-    back.style.zIndex = '3';
-    front.style.zIndex = '2';
 
-    back.oncanplay = function() {
-        back.oncanplay = null;
-        back.play();
-        front.pause();
-        front.style.visibility = 'hidden';
-        front.removeAttribute('src');
-        front.load();
-        var tmp = front;
-        front = back;
-        back = tmp;
+    back.onloadeddata = function() {
+        back.onloadeddata = null;
+        back.play().then(function() {
+            back.style.visibility = 'visible';
+            back.style.zIndex = '3';
+            front.style.zIndex = '1';
+            front.pause();
+            front.style.visibility = 'hidden';
+            var tmp = front;
+            front = back;
+            back = tmp;
+        }).catch(function(e) {
+            console.log('[Play error]', e);
+            /* play 실패해도 강제 전환 */
+            back.style.visibility = 'visible';
+            back.style.zIndex = '3';
+            front.style.zIndex = '1';
+            front.pause();
+            front.style.visibility = 'hidden';
+            var tmp = front;
+            front = back;
+            back = tmp;
+        });
     };
 }
 
