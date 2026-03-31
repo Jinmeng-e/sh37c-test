@@ -10,53 +10,73 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
 video {
     position: absolute; top: 0; left: 0;
     width: 100%; height: 100%; object-fit: cover;
-    visibility: hidden;
-}
-video.active {
-    visibility: visible;
-    z-index: 2;
 }
 </style>
 </head>
 <body>
 
+<video id="vA" loop playsinline muted></video>
+<video id="vB" loop playsinline muted style="visibility:hidden"></video>
+
 <script>
 var TOTAL = 12;
 var BASE = 'https://pub-4702f6b2fa2043cba545ed8b55e7f952.r2.dev/';
 var currentIndex = -1;
-var videos = [];
+var blobUrls = [];   /* 메모리에 캐시된 blob URL */
+var vA = document.getElementById('vA');
+var vB = document.getElementById('vB');
+var front = vA;
+var back = vB;
 
 function getFile(num) { return BASE + (num < 10 ? '0' + num : '' + num) + '.webm'; }
 
-/* ── 12개 비디오 태그 미리 생성 + 프리로드 ── */
-for (var i = 0; i < TOTAL; i++) {
-    var v = document.createElement('video');
-    v.loop = true;
-    v.muted = true;
-    v.playsInline = true;
-    v.preload = 'auto';
-    v.src = getFile(i + 1);
-    v.load();
-    document.body.appendChild(v);
-    videos.push(v);
+/* ── 모든 영상을 Blob으로 미리 다운로드 ── */
+function preloadAll() {
+    var promises = [];
+    for (var i = 0; i < TOTAL; i++) {
+        (function(idx) {
+            var p = fetch(getFile(idx + 1))
+                .then(function(r) { return r.blob(); })
+                .then(function(blob) {
+                    blobUrls[idx] = URL.createObjectURL(blob);
+                    console.log('[Preload] ' + (idx+1) + '/' + TOTAL + ' done');
+                })
+                .catch(function(e) {
+                    /* 실패하면 원본 URL 사용 */
+                    blobUrls[idx] = getFile(idx + 1);
+                    console.log('[Preload] ' + (idx+1) + ' failed, using URL');
+                });
+            promises.push(p);
+        })(i);
+    }
+    return Promise.all(promises);
 }
 
-/* ── 채널 전환: show/hide만 (즉시 전환) ── */
+/* ── 채널 전환 ── */
 function playTrack(idx) {
     if (idx < 0 || idx >= TOTAL) return;
     if (idx === currentIndex) return;
 
-    /* 이전 영상 숨기고 일시정지 */
-    if (currentIndex >= 0) {
-        videos[currentIndex].classList.remove('active');
-        videos[currentIndex].pause();
-    }
-
     currentIndex = idx;
-    var v = videos[idx];
-    v.currentTime = 0;
-    v.classList.add('active');
-    v.play();
+    var url = blobUrls[idx] || getFile(idx + 1);
+
+    back.src = url;
+    back.load();
+    back.style.visibility = 'visible';
+    back.style.zIndex = '3';
+    front.style.zIndex = '2';
+
+    back.oncanplay = function() {
+        back.oncanplay = null;
+        back.play();
+        front.pause();
+        front.style.visibility = 'hidden';
+        front.removeAttribute('src');
+        front.load();
+        var tmp = front;
+        front = back;
+        back = tmp;
+    };
 }
 
 /* ── IR Remote ── */
@@ -87,8 +107,11 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-/* 첫 영상 자동 재생 */
-playTrack(0);
+/* ── 시작: 전부 다운로드 후 첫 영상 재생 ── */
+preloadAll().then(function() {
+    console.log('[Ready] All videos in memory');
+    playTrack(0);
+});
 </script>
 </body>
 </html>
