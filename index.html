@@ -21,7 +21,7 @@ video {
 
 <script>
 var TOTAL = 12;
-var BASE = 'https://pub-4702f6b2fa2043cba545ed8b55e7f952.r2.dev/';
+var BASE = 'videos/';
 var currentIndex = 0;
 var vA = document.getElementById('vA');
 var vB = document.getElementById('vB');
@@ -30,7 +30,7 @@ var back = vB;
 var swapTimer = null;
 var pendingIdx = -1;
 
-function getFile(num) { return BASE + (num < 10 ? '0' + num : '' + num) + '.mp4'; }
+function getFile(num) { return BASE + (num < 10 ? '0' + num : '' + num) + '.webm'; }
 
 function cancelPending() {
     if (swapTimer) { clearTimeout(swapTimer); swapTimer = null; }
