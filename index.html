@@ -10,82 +10,89 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
 video {
     position: absolute; top: 0; left: 0;
     width: 100%; height: 100%; object-fit: cover;
+    visibility: hidden;
 }
 </style>
 </head>
 <body>
 
-<video id="vA" loop playsinline preload="auto" muted></video>
-<video id="vB" loop playsinline preload="auto" muted style="visibility:hidden"></video>
-
 <script>
 var TOTAL = 12;
 var BASE = 'videos/';
 var currentIndex = -1;
+var videos = [];
 var blobUrls = {};
-var loadCount = 0;
-var vA = document.getElementById('vA');
-var vB = document.getElementById('vB');
-var front = vA;
-var back = vB;
+var dlCount = 0;
+var readyCount = 0;
 
 function getFile(num) { return BASE + (num < 10 ? '0' + num : '' + num) + '.webm'; }
 
-/* ── XHR로 Blob 다운로드 (fetch 대신, 호환성 높음) ── */
-function downloadBlob(idx, callback) {
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', getFile(idx + 1), true);
-    xhr.responseType = 'blob';
-    xhr.onload = function() {
-        if (xhr.status === 200) {
-            blobUrls[idx] = URL.createObjectURL(xhr.response);
-        } else {
-            blobUrls[idx] = getFile(idx + 1);
-        }
-        callback();
-    };
-    xhr.onerror = function() {
-        blobUrls[idx] = getFile(idx + 1);
-        callback();
-    };
-    xhr.send();
-}
-
-/* ── 전부 다운로드 후 콜백 ── */
-function preloadAll(done) {
+/* ── 1단계: XHR로 Blob 전부 다운로드 ── */
+function downloadAll(done) {
     for (var i = 0; i < TOTAL; i++) {
-        downloadBlob(i, function() {
-            loadCount++;
-            if (loadCount >= TOTAL) done();
-        });
+        (function(idx) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', getFile(idx + 1), true);
+            xhr.responseType = 'blob';
+            xhr.onload = function() {
+                blobUrls[idx] = (xhr.status === 200)
+                    ? URL.createObjectURL(xhr.response)
+                    : getFile(idx + 1);
+                dlCount++;
+                if (dlCount >= TOTAL) done();
+            };
+            xhr.onerror = function() {
+                blobUrls[idx] = getFile(idx + 1);
+                dlCount++;
+                if (dlCount >= TOTAL) done();
+            };
+            xhr.send();
+        })(i);
     }
 }
 
-/* ── 채널 전환 ── */
+/* ── 2단계: video 태그 만들고 전부 로드 (pause 상태, 첫 프레임 대기) ── */
+function loadAll(done) {
+    var loaded = 0;
+    for (var i = 0; i < TOTAL; i++) {
+        (function(idx) {
+            var v = document.createElement('video');
+            v.loop = true;
+            v.muted = true;
+            v.playsInline = true;
+            v.preload = 'auto';
+            v.src = blobUrls[idx];
+            v.onloadeddata = function() {
+                v.onloadeddata = null;
+                v.currentTime = 0;
+                loaded++;
+                console.log('[Load] ' + loaded + '/' + TOTAL);
+                if (loaded >= TOTAL) done();
+            };
+            /* 5초 안에 로드 안 되면 그냥 진행 */
+            setTimeout(function() {
+                if (v.onloadeddata) { v.onloadeddata = null; loaded++; if (loaded >= TOTAL) done(); }
+            }, 5000);
+            v.load();
+            document.body.appendChild(v);
+            videos[idx] = v;
+        })(i);
+    }
+}
+
+/* ── 채널 전환: show + play / hide + pause + reset ── */
 function playTrack(idx) {
     if (idx < 0 || idx >= TOTAL) return;
     if (idx === currentIndex) return;
 
-    back.oncanplay = null;
+    if (currentIndex >= 0) {
+        videos[currentIndex].pause();
+        videos[currentIndex].style.visibility = 'hidden';
+        videos[currentIndex].currentTime = 0;
+    }
     currentIndex = idx;
-
-    var url = blobUrls[idx] || getFile(idx + 1);
-    back.src = url;
-    back.load();
-    back.style.visibility = 'hidden';
-    back.style.zIndex = '3';
-    front.style.zIndex = '2';
-
-    back.oncanplay = function() {
-        back.oncanplay = null;
-        back.play();
-        back.style.visibility = 'visible';
-        front.pause();
-        front.style.visibility = 'hidden';
-        var tmp = front;
-        front = back;
-        back = tmp;
-    };
+    videos[idx].style.visibility = 'visible';
+    videos[idx].play();
 }
 
 /* ── IR Remote ── */
@@ -107,10 +114,13 @@ document.addEventListener('keydown', function(e) {
     if (ch >= 1 && ch <= TOTAL) playTrack(ch - 1);
 });
 
-/* ── 시작: XHR로 전부 다운 → Blob URL로 재생 ── */
-preloadAll(function() {
-    console.log('[Ready] All ' + TOTAL + ' videos preloaded as blobs');
-    playTrack(0);
+/* ── 시작 ── */
+downloadAll(function() {
+    console.log('[1/2] All blobs downloaded');
+    loadAll(function() {
+        console.log('[2/2] All videos loaded at frame 0');
+        playTrack(0);
+    });
 });
 </script>
 </body>
