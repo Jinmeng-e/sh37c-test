@@ -10,75 +10,53 @@ html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
 video {
     position: absolute; top: 0; left: 0;
     width: 100%; height: 100%; object-fit: cover;
-
+    visibility: hidden;
+}
+video.active {
+    visibility: visible;
+    z-index: 2;
 }
 </style>
 </head>
 <body>
 
-<video id="vA" loop playsinline preload="auto" muted></video>
-<video id="vB" loop playsinline preload="auto" muted style="visibility:hidden"></video>
-
 <script>
 var TOTAL = 12;
 var BASE = 'https://pub-4702f6b2fa2043cba545ed8b55e7f952.r2.dev/';
-var currentIndex = 0;
-var vA = document.getElementById('vA');
-var vB = document.getElementById('vB');
-var front = vA;
-var back = vB;
-var swapTimer = null;
-var pendingIdx = -1;
+var currentIndex = -1;
+var videos = [];
 
 function getFile(num) { return BASE + (num < 10 ? '0' + num : '' + num) + '.webm'; }
 
-function cancelPending() {
-    if (swapTimer) { clearTimeout(swapTimer); swapTimer = null; }
-    back.oncanplay = null;
-    back.onerror = null;
-    back.pause();
-    back.removeAttribute('src');
-    back.style.opacity = '0';
-    back.style.visibility = 'hidden';
-    pendingIdx = -1;
+/* ── 12개 비디오 태그 미리 생성 + 프리로드 ── */
+for (var i = 0; i < TOTAL; i++) {
+    var v = document.createElement('video');
+    v.loop = true;
+    v.muted = true;
+    v.playsInline = true;
+    v.preload = 'auto';
+    v.src = getFile(i + 1);
+    v.load();
+    document.body.appendChild(v);
+    videos.push(v);
 }
 
+/* ── 채널 전환: show/hide만 (즉시 전환) ── */
 function playTrack(idx) {
     if (idx < 0 || idx >= TOTAL) return;
-    if (idx === currentIndex && front.src) return;
+    if (idx === currentIndex) return;
 
-    /* 이전 전환 진행중이면 즉시 취소 */
-    cancelPending();
+    /* 이전 영상 숨기고 일시정지 */
+    if (currentIndex >= 0) {
+        videos[currentIndex].classList.remove('active');
+        videos[currentIndex].pause();
+    }
 
     currentIndex = idx;
-    pendingIdx = idx;
-
-    /* 뒤에서 새 영상 로드 (현재 영상은 계속 재생) */
-    back.preload = 'auto';
-    back.src = getFile(idx + 1);
-    back.load();
-    back.style.opacity = '0';
-    back.style.visibility = 'visible';
-    back.style.zIndex = '3';
-    front.style.zIndex = '2';
-
-    var requestedIdx = idx;
-    back.oncanplay = function() {
-        back.oncanplay = null;
-        if (pendingIdx !== requestedIdx) return; /* 이미 다른 채널 요청됨 */
-        back.play();
-        back.style.opacity = '1';
-        front.pause();
-        front.style.visibility = 'hidden';
-        front.style.opacity = '0';
-        front.removeAttribute('src');
-        front.load();
-        var tmp = front;
-        front = back;
-        back = tmp;
-        pendingIdx = -1;
-    };
-    back.onerror = function() { pendingIdx = -1; };
+    var v = videos[idx];
+    v.currentTime = 0;
+    v.classList.add('active');
+    v.play();
 }
 
 /* ── IR Remote ── */
@@ -109,15 +87,8 @@ if ('serviceWorker' in navigator) {
     });
 }
 
-/* 첫 영상 - 충분히 버퍼링 후 재생 */
-front.src = getFile(1);
-front.load();
-front.oncanplay = function() {
-    front.oncanplay = null;
-    front.style.zIndex = '2';
-    front.style.visibility = 'visible';
-    front.play();
-};
+/* 첫 영상 자동 재생 */
+playTrack(0);
 </script>
 </body>
 </html>
