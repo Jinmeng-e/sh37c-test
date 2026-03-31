@@ -100,6 +100,15 @@ document.addEventListener('keydown', function(e) {
     if (ch >= 1 && ch <= TOTAL) playTrack(ch - 1);
 });
 
+/* ── Service Worker 등록 (캐시) ── */
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').then(function(reg) {
+        console.log('[SW] registered', reg.scope);
+    }).catch(function(err) {
+        console.log('[SW] registration failed', err);
+    });
+}
+
 /* 첫 영상 - 충분히 버퍼링 후 재생 */
 front.src = getFile(1);
 front.load();
